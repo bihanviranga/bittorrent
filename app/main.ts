@@ -1,20 +1,39 @@
-// Examples:
-// - decodeBencode("5:hello") -> "hello"
-// - decodeBencode("10:hello12345") -> "hello12345"
+// Reference: https://wiki.theory.org/BitTorrentSpecification#Bencoding
 function decodeBencode(bencodedValue: string): string {
-  /* This function is used to decode a bencoded string
-    The bencoded string is a string that is prefixed by the length of the string
-    **/
-
-  // Check if the first character is a digit
   if (!isNaN(parseInt(bencodedValue[0]))) {
+    // If the first char is a digit, this is a bencoded string.
+    // ex: 5:hello - where 5 is the length of the string
     const firstColonIndex = bencodedValue.indexOf(":");
     if (firstColonIndex === -1) {
-      throw new Error("Invalid encoded value");
+      throw new Error(`Invalid encoded value: ${bencodedValue}`);
     }
+    // TODO: check if the substring is the correct length. Throw an error otherwise.
     return bencodedValue.substring(firstColonIndex + 1);
+  } else if (bencodedValue[0] === "i") {
+    // If the first char is 'i', this is a bencoded integer.
+    // It goes until the char 'e' is met.
+    // ex: i42e is 42
+    const integerEndIndex = bencodedValue.indexOf("e");
+    if (integerEndIndex === -1) {
+      throw new Error(`Invalid encoded value: ${bencodedValue}`);
+    }
+
+    const valueString = bencodedValue.substring(1, integerEndIndex);
+
+    if (valueString.startsWith("-0")) {
+      // "-0" and leading zeroes are not allowed.
+      throw new Error(`Invalid encoded value: ${bencodedValue}`);
+    } else if (valueString.startsWith("0") && valueString !== "0") {
+      // Leading zeroes not allowed, except for "i0e".
+      throw new Error(
+        `Encoded integers cannot have leading zeroes. Got: ${bencodedValue}`,
+      );
+    } else {
+      return valueString;
+    }
+    // TODO: handle ie, ieeee, iasdsade, etc
   } else {
-    throw new Error("Only strings are supported at the moment");
+    throw new Error("Unsupported/invalid value");
   }
 }
 
