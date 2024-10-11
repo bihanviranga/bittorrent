@@ -1,5 +1,7 @@
+type DecodedValue = string | number;
+
 // Reference: https://wiki.theory.org/BitTorrentSpecification#Bencoding
-function decodeBencode(bencodedValue: string): string {
+function decodeBencode(bencodedValue: string): DecodedValue {
   if (!isNaN(parseInt(bencodedValue[0]))) {
     // If the first char is a digit, this is a bencoded string.
     // ex: 5:hello - where 5 is the length of the string
@@ -23,15 +25,21 @@ function decodeBencode(bencodedValue: string): string {
     if (valueString.startsWith("-0")) {
       // "-0" and leading zeroes are not allowed.
       throw new Error(`Invalid encoded value: ${bencodedValue}`);
-    } else if (valueString.startsWith("0") && valueString !== "0") {
+    }
+
+    if (valueString.startsWith("0") && valueString !== "0") {
       // Leading zeroes not allowed, except for "i0e".
       throw new Error(
         `Encoded integers cannot have leading zeroes. Got: ${bencodedValue}`,
       );
-    } else {
-      return valueString;
     }
-    // TODO: handle ie, ieeee, iasdsade, etc
+
+    const decodedNumber = parseInt(valueString);
+    if (isNaN(decodedNumber)) {
+      throw new Error(`Unable to parse as an integer: ${valueString}`);
+    }
+
+    return decodedNumber;
   } else {
     throw new Error("Unsupported/invalid value");
   }
