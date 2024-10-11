@@ -10,11 +10,13 @@ type DecodeResult = {
 export function decodeBencode(bencodedValue: string): DecodedValue {
   if (!isNaN(parseInt(bencodedValue[0]))) {
     // If the first char is a digit, this is a bencoded string.
-    return decodeBencodedString(bencodedValue);
+    const result = decodeBencodedString(bencodedValue);
+    return result.value;
   } else if (bencodedValue[0] === "i") {
     // If the first char is 'i', this is a bencoded integer.
     // It goes until the char 'e' is met.
-    return decodeBencodedInteger(bencodedValue);
+    const result = decodeBencodedInteger(bencodedValue);
+    return result.value;
   } else if (bencodedValue[0] === "l") {
     const result = decodeBencodedList(bencodedValue.substring(1));
     return result.value;
@@ -23,44 +25,31 @@ export function decodeBencode(bencodedValue: string): DecodedValue {
   }
 }
 
-// Can we return something like { value: DecodedValue, endIndex: number } from here,
-// because it will really help with the recursion.
 function decodeBencodedList(bencodedValue: string): DecodeResult {
   const decodedValues = [];
 
   let cIndex = 0;
   while (cIndex <= bencodedValue.length) {
     if (bencodedValue[cIndex] === "e") {
-      cIndex++;
       break;
     }
 
     const substring = bencodedValue.substring(cIndex);
 
     if (!isNaN(parseInt(substring[0]))) {
-      const value = decodeBencodedString(substring);
-      decodedValues.push(value);
-
-      // Calculate sizes necessary to update the cIndex.
-      // We can assume 'size' is valid because if it's not, decodeBencodedString would throw an error.
-      const [sizeStr, _] = substring.split(":", 2);
-
-      // Update the cIndex
-      // Add the size of the word ('value'), size of the length value ('42', etc) + 1 more for the colon char.
-      cIndex += value.toString().length + sizeStr.length + 1;
+      const result = decodeBencodedString(substring);
+      decodedValues.push(result.value);
+      cIndex += result.endIndex;
     } else if (substring[0] === "i") {
-      const value = decodeBencodedInteger(substring);
-      decodedValues.push(value);
-
-      // Calculate sizes necessary to update the cIndex.
-      // We can assume that sizes are correct because if not, decodeBencodedInteger would throw.
-      const integerEndIndex = substring.indexOf("e");
-      cIndex = cIndex + integerEndIndex + 1;
+      const result = decodeBencodedInteger(substring);
+      decodedValues.push(result.value);
+      // The +1 ensures we skip the integer delimiter 'e' and start next round with the next char.
+      cIndex += result.endIndex + 1;
     } else if (substring[0] === "l") {
       const result = decodeBencodedList(substring.substring(1));
       decodedValues.push(result.value);
-      // The +1 accounts for the "l" at the beginning
-      cIndex += result.endIndex + 1;
+      // The +1's' accounts for the "l" at the beginning and skips the delimiter "e" at the end
+      cIndex += result.endIndex + 1 + 1;
     } else {
       throw new Error("Unsupported/invalid value");
     }
@@ -70,7 +59,7 @@ function decodeBencodedList(bencodedValue: string): DecodeResult {
 }
 
 // FIXME: try input i2-32e
-function decodeBencodedInteger(bencodedValue: string): DecodedValue {
+function decodeBencodedInteger(bencodedValue: string): DecodeResult {
   // ex: i42e is 42
   const integerEndIndex = bencodedValue.indexOf("e");
   if (integerEndIndex === -1) {
@@ -96,10 +85,10 @@ function decodeBencodedInteger(bencodedValue: string): DecodedValue {
     throw new Error(`Unable to parse as an integer: ${valueString}`);
   }
 
-  return decodedNumber;
+  return { value: decodedNumber, endIndex: integerEndIndex };
 }
 
-function decodeBencodedString(bencodedValue: string): DecodedValue {
+function decodeBencodedString(bencodedValue: string): DecodeResult {
   // ex: 5:hello - where 5 is the length of the string
 
   const delimiterIndex = bencodedValue.indexOf(":");
@@ -122,5 +111,7 @@ function decodeBencodedString(bencodedValue: string): DecodedValue {
     );
   }
 
-  return value;
+  // +1 accounts for the ":" character
+  const endIndex = value.length + sizeStr.length + 1;
+  return { value, endIndex };
 }
