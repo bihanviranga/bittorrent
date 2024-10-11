@@ -31,6 +31,7 @@ function decodeBencodedList(bencodedValue: string): DecodeResult {
   let cIndex = 0;
   while (cIndex <= bencodedValue.length) {
     if (bencodedValue[cIndex] === "e") {
+      cIndex++;
       break;
     }
 
@@ -58,7 +59,8 @@ function decodeBencodedList(bencodedValue: string): DecodeResult {
     } else if (substring[0] === "l") {
       const result = decodeBencodedList(substring.substring(1));
       decodedValues.push(result.value);
-      cIndex += result.endIndex;
+      // The +1 accounts for the "l" at the beginning
+      cIndex += result.endIndex + 1;
     } else {
       throw new Error("Unsupported/invalid value");
     }
@@ -100,7 +102,13 @@ function decodeBencodedInteger(bencodedValue: string): DecodedValue {
 function decodeBencodedString(bencodedValue: string): DecodedValue {
   // ex: 5:hello - where 5 is the length of the string
 
-  const [sizeStr, word] = bencodedValue.split(":", 2);
+  const delimiterIndex = bencodedValue.indexOf(":");
+  if (delimiterIndex === -1) {
+    throw new Error(`Expected ':' but found none in ${bencodedValue}`);
+  }
+
+  const sizeStr = bencodedValue.slice(0, delimiterIndex);
+  const word = bencodedValue.slice(delimiterIndex + 1);
 
   const size = parseInt(sizeStr);
   if (isNaN(size)) {
