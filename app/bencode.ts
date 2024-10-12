@@ -1,6 +1,10 @@
-export type DecodedValue = string | number | Array<DecodedValue>;
+type DecodedDictionary = { [key: string]: DecodedValue };
+export type DecodedValue =
+  | string
+  | number
+  | Array<DecodedValue>
+  | DecodedDictionary;
 
-// TODO: use this type in other decode functions as well?
 type DecodeResult = {
   value: DecodedValue;
   endIndex: number;
@@ -18,11 +22,70 @@ export function decodeBencode(bencodedValue: string): DecodedValue {
     const result = decodeBencodedInteger(bencodedValue);
     return result.value;
   } else if (bencodedValue[0] === "l") {
+    // TODO: why do we send a substr here?
     const result = decodeBencodedList(bencodedValue.substring(1));
+    return result.value;
+  } else if (bencodedValue[0] === "d") {
+    // TODO: why do we send a substr here?
+    const result = decodeBencodedDictionary(bencodedValue.substring(1));
     return result.value;
   } else {
     throw new Error("Unsupported/invalid value");
   }
+}
+
+function decodeBencodedDictionary(bencodedValue: string): DecodeResult {
+  const decodedDictionary: DecodedDictionary = {};
+
+  let cIndex = 0;
+  let key: string | null = null;
+  while (cIndex <= bencodedValue.length) {
+    if (bencodedValue[cIndex] === "e") {
+      break;
+    }
+
+    const substring = bencodedValue.substring(cIndex);
+
+    // Reading the key
+    if (!key) {
+      const keyResult = decodeBencodedString(substring);
+      key = keyResult.value as string;
+      cIndex += keyResult.endIndex;
+      continue;
+    }
+
+    // Reading the value
+    if (!isNaN(parseInt(substring[0]))) {
+      const result = decodeBencodedString(substring);
+      decodedDictionary[key] = result.value;
+      key = null;
+      cIndex += result.endIndex;
+      continue;
+    } else if (substring[0] === "i") {
+      const result = decodeBencodedInteger(substring);
+      decodedDictionary[key] = result.value;
+      key = null;
+      cIndex += result.endIndex + 1;
+      continue;
+    } else if (substring[0] === "l") {
+      const result = decodeBencodedList(substring.substring(1));
+      decodedDictionary[key] = result.value;
+      key = null;
+      cIndex += result.endIndex + 1 + 1;
+      continue;
+    } else if (substring[0] === "d") {
+      const result = decodeBencodedDictionary(substring.substring(1));
+      decodedDictionary[key] = result.value;
+      key = null;
+      cIndex += result.endIndex + 1 + 1;
+      continue;
+    } else {
+      throw new Error("Unsupported/invalid value");
+    }
+  }
+
+  const sorted = sortObjectByKeys(decodedDictionary);
+  return { value: sorted, endIndex: cIndex };
 }
 
 function decodeBencodedList(bencodedValue: string): DecodeResult {
@@ -49,6 +112,11 @@ function decodeBencodedList(bencodedValue: string): DecodeResult {
       const result = decodeBencodedList(substring.substring(1));
       decodedValues.push(result.value);
       // The +1's' accounts for the "l" at the beginning and skips the delimiter "e" at the end
+      cIndex += result.endIndex + 1 + 1;
+    } else if (substring[0] === "d") {
+      const result = decodeBencodedDictionary(substring.substring(1));
+      decodedValues.push(result.value);
+      // The +1's' accounts for the "d" at the beginning and skips the delimiter "e" at the end
       cIndex += result.endIndex + 1 + 1;
     } else {
       throw new Error("Unsupported/invalid value");
@@ -114,4 +182,15 @@ function decodeBencodedString(bencodedValue: string): DecodeResult {
   // +1 accounts for the ":" character
   const endIndex = value.length + sizeStr.length + 1;
   return { value, endIndex };
+}
+
+function sortObjectByKeys<T extends Record<string, any>>(obj: T): T {
+  const sortedKeys = Object.keys(obj).sort(); // Get keys and sort them
+  const sortedObj: Partial<T> = {}; // Create a new object
+
+  for (const key of sortedKeys) {
+    sortedObj[key] = obj[key]; // Assign values to the sorted keys
+  }
+
+  return sortedObj as T; // Type assertion to return the original type
 }
