@@ -1,17 +1,5 @@
 import { sortObjectByKeys } from "./util";
-
-type DecodedDictionary = { [key: string]: DecodedValue };
-
-export type DecodedValue =
-  | string
-  | number
-  | Array<DecodedValue>
-  | DecodedDictionary;
-
-type DecodeResult = {
-  value: DecodedValue;
-  endIndex: number;
-};
+import type { DecodedValue, DecodeResult, DecodedDictionary } from "./types";
 
 export function decodeBencode(bencodedValue: string): DecodedValue {
   const result = decodeHelper(bencodedValue);
